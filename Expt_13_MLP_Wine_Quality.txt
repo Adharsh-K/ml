@@ -1,0 +1,33 @@
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import make_pipeline
+from sklearn.neural_network import MLPClassifier
+from sklearn.metrics import accuracy_score, f1_score
+
+USE_LOCAL_CSV = False
+LOCAL_CSV_PATH = "winequality-red.csv"
+TARGET_COLUMN = "quality"
+
+if USE_LOCAL_CSV:
+    print("Importing local Wine Quality CSV:", LOCAL_CSV_PATH)
+    df = pd.read_csv(LOCAL_CSV_PATH, sep=";" if LOCAL_CSV_PATH.endswith(".csv") else ",")
+else:
+    print("Loading Wine Quality dataset...")
+    df = pd.read_csv("https://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/winequality-red.csv", sep=";")
+print("Dataset loaded. Shape:", df.shape)
+X = df.drop(columns=[TARGET_COLUMN])
+y = pd.cut(df[TARGET_COLUMN], bins=[0, 5, 6, 10], labels=["Low", "Medium", "High"]).astype(str)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+print("Training samples:", len(X_train), "Testing samples:", len(X_test))
+for layers in [(32,), (64, 32), (128, 64, 32)]:
+    print("Training MLP with hidden layers:", layers)
+    model = make_pipeline(StandardScaler(), MLPClassifier(hidden_layer_sizes=layers, activation="relu", max_iter=800, early_stopping=True, random_state=42))
+    model.fit(X_train, y_train)
+    pred = model.predict(X_test)
+    mlp = model.named_steps["mlpclassifier"]
+    print("Accuracy:", accuracy_score(y_test, pred), "Macro F1:", f1_score(y_test, pred, average="macro"))
+    print("Iterations:", mlp.n_iter_, "Final loss:", mlp.loss_)
+    print("Final weight matrices:", [w.shape for w in mlp.coefs_])
+    print("Final intercept vectors:", [b.shape for b in mlp.intercepts_])

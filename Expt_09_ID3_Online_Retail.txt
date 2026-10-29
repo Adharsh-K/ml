@@ -1,0 +1,37 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.tree import DecisionTreeClassifier, plot_tree
+from sklearn.preprocessing import LabelEncoder
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+
+USE_LOCAL_CSV = False
+LOCAL_CSV_PATH = "online_retail.csv"
+
+if USE_LOCAL_CSV:
+    print("Importing local Online Retail CSV:", LOCAL_CSV_PATH)
+    df = pd.read_csv(LOCAL_CSV_PATH)
+else:
+    print("Loading Online Retail Excel dataset...")
+    df = pd.read_excel("https://archive.ics.uci.edu/ml/machine-learning-databases/00352/Online%20Retail.xlsx")
+print("Dataset loaded. Shape:", df.shape)
+df = df.dropna(subset=["CustomerID", "Quantity", "UnitPrice", "StockCode"])
+df = df[(df["Quantity"] > 0) & (df["UnitPrice"] > 0)]
+customer = df.groupby("CustomerID").agg(TotalQuantity=("Quantity", "sum"), UniqueProducts=("StockCode", "nunique"), Transactions=("InvoiceNo", "nunique")).reset_index()
+customer["TotalSpend"] = df.assign(Spend=df["Quantity"] * df["UnitPrice"]).groupby("CustomerID")["Spend"].sum().reindex(customer["CustomerID"]).to_numpy()
+customer["Segment"] = pd.qcut(customer["TotalSpend"].rank(method="first"), q=3, labels=["Low", "Medium", "High"])
+X = customer[["TotalQuantity", "TotalSpend", "UniqueProducts", "Transactions"]]
+y = LabelEncoder().fit_transform(customer["Segment"])
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+print("Training customers:", len(X_train), "Testing customers:", len(X_test))
+print("Training ID3-style decision tree using entropy criterion...")
+model = DecisionTreeClassifier(criterion="entropy", max_depth=4, random_state=42).fit(X_train, y_train)
+pred = model.predict(X_test)
+print("Accuracy:", accuracy_score(y_test, pred))
+print("Final feature importances:", pd.Series(model.feature_importances_, index=X.columns).sort_values(ascending=False))
+print("Tree depth:", model.get_depth(), "Number of leaves:", model.get_n_leaves())
+plt.figure(figsize=(16, 8))
+plot_tree(model, feature_names=X.columns, class_names=["Low", "Medium", "High"], filled=True, rounded=True)
+plt.tight_layout()
+plt.show()

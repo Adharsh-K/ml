@@ -1,0 +1,34 @@
+import pandas as pd
+from sklearn.datasets import fetch_20newsgroups
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.model_selection import train_test_split
+from sklearn.naive_bayes import MultinomialNB, BernoulliNB
+from sklearn.metrics import accuracy_score, f1_score
+
+USE_LOCAL_CSV = False
+LOCAL_CSV_PATH = "newsgroups.csv"
+TEXT_COLUMN = "text"
+TARGET_COLUMN = "target"
+
+if USE_LOCAL_CSV:
+    print("Importing local text CSV:", LOCAL_CSV_PATH)
+    df = pd.read_csv(LOCAL_CSV_PATH).dropna(subset=[TEXT_COLUMN, TARGET_COLUMN])
+    texts, targets = df[TEXT_COLUMN].astype(str).tolist(), df[TARGET_COLUMN]
+else:
+    print("Loading 20 Newsgroups dataset...")
+    data = fetch_20newsgroups(subset="all", remove=("headers", "footers", "quotes"))
+    texts, targets = data.data, data.target
+X_train_text, X_test_text, y_train, y_test = train_test_split(texts, targets, test_size=0.2, random_state=42, stratify=targets)
+print("Training documents:", len(X_train_text), "Testing documents:", len(X_test_text))
+print("Converting text into word-count features...")
+vectorizer = CountVectorizer(stop_words="english", max_features=30000, min_df=2)
+X_train, X_test = vectorizer.fit_transform(X_train_text), vectorizer.transform(X_test_text)
+print("Training matrix shape:", X_train.shape)
+models = {"Multinomial Naive Bayes": MultinomialNB(alpha=1.0), "Bernoulli Naive Bayes": BernoulliNB(alpha=1.0)}
+for name, model in models.items():
+    print("Training", name, "...")
+    model.fit(X_train, y_train)
+    pred = model.predict(X_test)
+    print(name, "Accuracy:", accuracy_score(y_test, pred), "Macro F1:", f1_score(y_test, pred, average="macro"))
+    print("Final class log priors:", model.class_log_prior_)
+    print("Final feature log probabilities shape:", model.feature_log_prob_.shape)

@@ -1,0 +1,43 @@
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.pipeline import make_pipeline
+from sklearn.impute import SimpleImputer
+from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+
+USE_LOCAL_CSV = False
+LOCAL_CSV_PATH = "adult.csv"
+TARGET_COLUMN = "income"
+cols = ["age", "workclass", "fnlwgt", "education", "education_num", "marital_status", "occupation", "relationship", "race", "sex", "capital_gain", "capital_loss", "hours_per_week", "native_country", "income"]
+
+if USE_LOCAL_CSV:
+    print("Importing local Adult Income CSV:", LOCAL_CSV_PATH)
+    df = pd.read_csv(LOCAL_CSV_PATH, skipinitialspace=True, na_values="?")
+else:
+    print("Loading Adult Income dataset...")
+    url = "https://archive.ics.uci.edu/ml/machine-learning-databases/adult/adult.data"
+    df = pd.read_csv(url, names=cols, skipinitialspace=True, na_values="?")
+print("Dataset loaded. Shape:", df.shape)
+df = df.dropna()
+X = df.drop(columns=[TARGET_COLUMN])
+y = (df[TARGET_COLUMN].astype(str).str.strip().str.replace(".", "", regex=False) == ">50K").astype(int)
+numeric = X.select_dtypes(include=np.number).columns.tolist()
+categorical = X.select_dtypes(exclude=np.number).columns.tolist()
+preprocessor = ColumnTransformer([("num", make_pipeline(SimpleImputer(strategy="median"), StandardScaler()), numeric), ("cat", make_pipeline(SimpleImputer(strategy="most_frequent"), OneHotEncoder(handle_unknown="ignore")), categorical)])
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+print("Training samples:", len(X_train), "Testing samples:", len(X_test))
+models = {"Logistic Regression": make_pipeline(preprocessor, LogisticRegression(max_iter=2000)), "Decision Tree": make_pipeline(preprocessor, DecisionTreeClassifier(max_depth=10, random_state=42))}
+for name, model in models.items():
+    print("Training", name, "...")
+    model.fit(X_train, y_train)
+    pred = model.predict(X_test)
+    print(name, "Accuracy:", accuracy_score(y_test, pred), "Precision:", precision_score(y_test, pred, zero_division=0), "Recall:", recall_score(y_test, pred, zero_division=0), "F1:", f1_score(y_test, pred, zero_division=0))
+    estimator = model.named_steps[list(model.named_steps.keys())[-1]]
+    if hasattr(estimator, "coef_"):
+        print("Final weights:", estimator.coef_, "Intercept:", estimator.intercept_)
+    elif hasattr(estimator, "feature_importances_"):
+        print("Final feature importances:", estimator.feature_importances_)

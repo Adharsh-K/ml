@@ -1,0 +1,47 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.datasets import load_iris
+from sklearn.svm import SVC
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import make_pipeline
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+
+USE_LOCAL_CSV = False
+LOCAL_CSV_PATH = "iris.csv"
+TARGET_COLUMN = "target"
+
+if USE_LOCAL_CSV:
+    print("Importing local Iris CSV:", LOCAL_CSV_PATH)
+    df = pd.read_csv(LOCAL_CSV_PATH)
+    if TARGET_COLUMN not in df.columns:
+        TARGET_COLUMN = df.columns[-1]
+    y = pd.factorize(df[TARGET_COLUMN])[0]
+    X = df.drop(columns=[TARGET_COLUMN]).select_dtypes(include=np.number).iloc[:, :2].to_numpy()
+else:
+    print("Loading Iris dataset...")
+    iris = load_iris()
+    X, y = iris.data[:, :2], (iris.target != 0).astype(int)
+print("Dataset shape:", X.shape)
+if len(np.unique(y)) > 2:
+    y = (y != np.unique(y)[0]).astype(int)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, random_state=42)
+print("Training samples:", len(X_train), "Testing samples:", len(X_test))
+print("Training linear SVM...")
+model = make_pipeline(StandardScaler(), SVC(kernel="linear", C=1.0)).fit(X_train, y_train)
+print("Accuracy:", accuracy_score(y_test, model.predict(X_test)))
+svc, scaler = model.named_steps["svc"], model.named_steps["standardscaler"]
+X_scaled = scaler.transform(X)
+print("Final SVM weights:", svc.coef_, "Intercept:", svc.intercept_)
+print("Support vectors:", svc.support_vectors_.shape[0])
+plt.scatter(X_scaled[:, 0], X_scaled[:, 1], c=y, cmap="coolwarm", s=25)
+ax = plt.gca()
+xlim, ylim = ax.get_xlim(), ax.get_ylim()
+xx, yy = np.meshgrid(np.linspace(xlim[0], xlim[1], 300), np.linspace(ylim[0], ylim[1], 300))
+Z = svc.decision_function(np.c_[xx.ravel(), yy.ravel()]).reshape(xx.shape)
+ax.contour(xx, yy, Z, levels=[-1, 0, 1], linestyles=["--", "-", "--"])
+plt.xlabel("Standardized feature 1")
+plt.ylabel("Standardized feature 2")
+plt.tight_layout()
+plt.show()

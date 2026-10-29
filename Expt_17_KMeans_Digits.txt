@@ -1,0 +1,47 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.datasets import load_digits
+from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score, adjusted_rand_score
+
+USE_LOCAL_CSV = False
+LOCAL_CSV_PATH = "digits.csv"
+TARGET_COLUMN = "target"
+
+if USE_LOCAL_CSV:
+    print("Importing local Digits CSV:", LOCAL_CSV_PATH)
+    df = pd.read_csv(LOCAL_CSV_PATH)
+    y = df[TARGET_COLUMN].to_numpy() if TARGET_COLUMN in df.columns else None
+    X = df.drop(columns=[TARGET_COLUMN]).to_numpy() if TARGET_COLUMN in df.columns else df.to_numpy()
+else:
+    print("Loading Digits dataset...")
+    digits = load_digits()
+    X, y = digits.data, digits.target
+print("Dataset shape:", X.shape)
+X_scaled = StandardScaler().fit_transform(X)
+ks, inertias, silhouettes = [2, 3, 5, 8, 10, 12], [], []
+for k in ks:
+    print("Training K-means with", k, "clusters...")
+    model = KMeans(n_clusters=k, n_init=10, random_state=42)
+    labels = model.fit_predict(X_scaled)
+    inertia, silhouette = model.inertia_, silhouette_score(X_scaled, labels)
+    inertias.append(inertia)
+    silhouettes.append(silhouette)
+    print("K:", k, "Inertia:", inertia, "Silhouette score:", silhouette)
+    print("Final cluster-center weights shape:", model.cluster_centers_.shape)
+    if y is not None:
+        print("Adjusted Rand Index:", adjusted_rand_score(y, labels))
+plt.figure()
+plt.plot(ks, inertias, marker="o")
+plt.xlabel("Number of clusters K")
+plt.ylabel("Inertia")
+plt.tight_layout()
+plt.show()
+plt.figure()
+plt.plot(ks, silhouettes, marker="o")
+plt.xlabel("Number of clusters K")
+plt.ylabel("Silhouette score")
+plt.tight_layout()
+plt.show()
